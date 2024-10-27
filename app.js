@@ -1,6 +1,6 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const Review = require('./Functions/Review.js'); // Assuming this is still in the main folder
+const Review = require('./Functions/Review'); // Ensure the path is correct
 const bodyParser = require('body-parser');
 const session = require('express-session');
 const path = require('path');
@@ -12,9 +12,9 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname))); // Serve static files from the main folder
+app.use(express.static(path.join(__dirname)));
 app.use(session({
-    secret: 'your-secret-key',
+    secret: process.env.SESSION_SECRET, // Use SESSION_SECRET from .env
     resave: false,
     saveUninitialized: true,
 }));
@@ -26,14 +26,14 @@ mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopol
 
 // Routes
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html')); // Serve index.html from the main folder
+    res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 app.get('/admin', (req, res) => {
-    res.sendFile(path.join(__dirname, 'admin.html')); // Serve admin.html from the main folder
+    res.sendFile(path.join(__dirname, 'admin.html'));
 });
 
-// Submit a review
+// Route to submit a review
 app.post('/reviews', async (req, res) => {
     const { name, commission, text } = req.body;
     const review = new Review({ name, commission, text });
@@ -99,7 +99,6 @@ app.put('/reviews/:id/like', async (req, res) => {
 // Admin login (dummy implementation)
 app.post('/login', (req, res) => {
     const { username, password } = req.body;
-    // Replace with your actual authentication logic
     if (username === 'elzino123' && password === 'elzino123') {
         req.session.user = { username };
         res.sendStatus(200);

@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const Review = require('./Review.js'); // Adjust the path if necessary
+const Review = require('./Review'); // Adjust the path if necessary
 require('dotenv').config();
 
 const uri = process.env.MONGO_URI; // MongoDB URI from environment variables
@@ -19,12 +19,21 @@ exports.handler = async (event, context) => {
         // Handle different HTTP methods
         switch (event.httpMethod) {
             case 'GET':
-                // Fetch all approved reviews
-                const approvedReviews = await Review.find({ approved: true });
-                return {
-                    statusCode: 200,
-                    body: JSON.stringify(approvedReviews),
-                };
+                if (event.path === '/reviews/pending') {
+                    // Fetch all pending reviews
+                    const pendingReviews = await Review.find({ approved: false });
+                    return {
+                        statusCode: 200,
+                        body: JSON.stringify(pendingReviews),
+                    };
+                } else {
+                    // Fetch all approved reviews (for other GET requests)
+                    const approvedReviews = await Review.find({ approved: true });
+                    return {
+                        statusCode: 200,
+                        body: JSON.stringify(approvedReviews),
+                    };
+                }
 
             case 'POST':
                 // Create a new review
@@ -37,12 +46,32 @@ exports.handler = async (event, context) => {
                 };
 
             case 'PUT':
-                // Approve a review by ID
-                const { id } = JSON.parse(event.body);
-                const updatedReview = await Review.findByIdAndUpdate(id, { approved: true }, { new: true });
-                return updatedReview 
-                    ? { statusCode: 200, body: JSON.stringify(updatedReview) }
-                    : { statusCode: 404, body: JSON.stringify({ error: 'Review not found' }) };
+                // Update likes or approve a review by ID
+                const { id, like } = JSON.parse(event.body);
+                const review = await Review.findById(id);
+                if (!review) {
+                    return {
+                        statusCode: 404,
+                        body: JSON.stringify({ error: 'Review not found' }),
+                    };
+                }
+
+                // Handle like/dislike logic
+                if (like !== undefined) { // If like is provided
+                    if (like) {
+                        review.likes++;
+                    } else {
+                        review.likes = Math.max(0, review.likes - 1);
+                    }
+                } else {
+                    // Approve the review if like is not provided
+                    review.approved = true;
+                }
+                await review.save();
+                return {
+                    statusCode: 200,
+                    body: JSON.stringify(review),
+                };
 
             case 'DELETE':
                 // Delete a review by ID
