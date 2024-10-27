@@ -1,0 +1,89 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Submit Review</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        input, textarea {
+            width: 100%;
+            max-width: 600px;
+            margin-bottom: 10px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        #approvedReviews {
+            margin-top: 40px;
+        }
+        .review {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            max-width: 600px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Submit Your Review</h1>
+    <input type="text" id="reviewerName" placeholder="Your Name" required />
+    <input type="text" id="commissionType" placeholder="Commission Type or Request" required />
+    <textarea id="reviewText" rows="4" placeholder="Write your review here..." required></textarea>
+    <button onclick="submitReview()">Submit</button>
+    
+    <div id="approvedReviews">
+        <h2>Approved Reviews</h2>
+        <div id="reviewsContainer"></div>
+    </div>
+
+    <script>
+        async function submitReview() {
+            const name = document.getElementById("reviewerName").value;
+            const commission = document.getElementById("commissionType").value;
+            const text = document.getElementById("reviewText").value;
+
+            if (name && commission && text) {
+                await fetch('/reviews', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, commission, text })
+                });
+                fetchApprovedReviews();
+            } else {
+                alert("Please fill out all fields.");
+            }
+        }
+
+        async function fetchApprovedReviews() {
+            const response = await fetch('/reviews/approved');
+            const reviews = await response.json();
+            const container = document.getElementById('reviewsContainer');
+            container.innerHTML = '';
+
+            reviews.forEach(review => {
+                const reviewDiv = document.createElement('div');
+                reviewDiv.classList.add('review');
+                reviewDiv.innerHTML = `
+                    <strong>${review.name}</strong><br>
+                    <em>${review.commission}</em><br>
+                    <p>${review.text}</p>
+                    <button onclick="toggleLike('${review._id}')">Like/Dislike</button>
+                    <span>${review.likes} Likes</span>`;
+                container.appendChild(reviewDiv);
+            });
+        }
+
+        async function toggleLike(id) {
+            await fetch(`/reviews/${id}/like`, { method: 'PUT' });
+            fetchApprovedReviews();
+        }
+
+        fetchApprovedReviews();
+    </script>
+</body>
+</html>
