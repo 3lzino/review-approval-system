@@ -9,7 +9,16 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+
+
+
+
 // Middleware
+app.use(cors({
+    origin: 'https://myreviewsystem.netlify.app', // Allow requests from your Netlify site
+    credentials: true, // Allow credentials if needed
+}));
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname)));
