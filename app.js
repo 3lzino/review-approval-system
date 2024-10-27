@@ -1,168 +1,114 @@
-require('dotenv').config();
-
 const express = require('express');
 const mongoose = require('mongoose');
+const Review = require('./Review.js'); // Assuming this is still in the main folder
 const bodyParser = require('body-parser');
 const session = require('express-session');
-const MemoryStore = require('memorystore')(session);
 const path = require('path');
-const Review = require('./models/Review');
+require('dotenv').config();
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
+// Middleware
 app.use(bodyParser.json());
-
-// MongoDB connection using environment variables for secure connection (e.g., MongoDB Atlas)
-mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/reviewsDB', {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-}).then(() => {
-    console.log('Connected to MongoDB');
-}).catch(err => {
-    console.error('Failed to connect to MongoDB:', err);
-});
-
-// Serve static files from the "views" directory
-app.use(express.static('views'));
-
-// Session configuration with secure cookies
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname))); // Serve static files from the main folder
 app.use(session({
-    store: new MemoryStore({ checkPeriod: 86400000 }), // Clear expired sessions daily
-    secret: process.env.SESSION_SECRET,
+    secret: 'your-secret-key',
     resave: false,
     saveUninitialized: true,
-    cookie: { maxAge: 1800000, secure: false } // 30-minute session, disable secure for testing
 }));
 
-// Middleware to check if the user is authenticated (for admin routes)
-function checkAuth(req, res, next) {
-    console.log('Session on admin page:', req.session); // Debug log
-    if (req.session.isAdmin) {
-        next();
-    } else {
-        res.status(403).json({ error: 'Unauthorized' });
-    }
-}
+// MongoDB Connection
+mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+    .then(() => console.log('MongoDB connected'))
+    .catch(err => console.error('MongoDB connection error:', err));
 
-// User login route for admin access
-app.post('/login', (req, res) => {
-    const { username, password } = req.body;
-    if (username === 'elzino123' && password === 'elzino123') {
-        req.session.isAdmin = true;
-        req.session.save(err => {
-            if (err) {
-                console.error('Session save error:', err);
-                return res.sendStatus(500);
-            }
-            console.log('Session after login:', req.session);
-            res.sendStatus(200);
-        });
-    } else {
-        res.sendStatus(401); // Unauthorized
-    }
+// Routes
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html')); // Serve index.html from the main folder
 });
 
-// Endpoint to return session info for debugging
-app.get('/session-info', (req, res) => {
-    res.json({ session: req.session });
+app.get('/admin', (req, res) => {
+    res.sendFile(path.join(__dirname, 'admin.html')); // Serve admin.html from the main folder
 });
 
-// Review submission route (unauthenticated)
+// Submit a review
 app.post('/reviews', async (req, res) => {
     const { name, commission, text } = req.body;
-    const review = new Review({ name, commission, text, approved: false });
+    const review = new Review({ name, commission, text });
     await review.save();
-    res.status(201).json(review);
+    res.status(201).send(review);
 });
 
-// Route to fetch pending reviews (admin only)
-app.get('/reviews/pending', checkAuth, async (req, res) => {
-    const reviews = await Review.find({ approved: false });
-    res.json(reviews);
-});
-
-// Route to fetch approved reviews (public)
+// Fetch approved reviews
 app.get('/reviews/approved', async (req, res) => {
     const reviews = await Review.find({ approved: true });
-    res.json(reviews);
+    res.send(reviews);
 });
 
-// Route to delete a review (admin only)
-app.delete('/reviews/:id', checkAuth, async (req, res) => {
-    await Review.findByIdAndDelete(req.params.id);
-    res.sendStatus(200);
+// Fetch pending reviews for admin
+app.get('/reviews/pending', async (req, res) => {
+    const reviews = await Review.find({ approved: false });
+    res.send(reviews);
 });
 
-// Route to delete a review (admin only)
-app.delete('/reviews/:id', checkAuth, async (req, res) => {
-    await Review.findByIdAndDelete(req.params.id);
-    res.sendStatus(200);
+// Approve a review
+app.put('/reviews/:id/approve', async (req, res) => {
+    const { id } = req.params;
+    await Review.findByIdAndUpdate(id, { approved: true });
+    res.sendStatus(204);
 });
 
-// Like functionality for reviews
+// Delete a review
+app.delete('/reviews/:id', async (req, res) => {
+    const { id } = req.params;
+    await Review.findByIdAndDelete(id);
+    res.sendStatus(204);
+});
+
+// Like or dislike a review
 app.put('/reviews/:id/like', async (req, res) => {
-    const reviewId = req.params.id;
-    const userIp = req.ip;
+    const { id } = req.params;
+    const ip = req.ip; // Get the user's IP address
 
-    try {
-        const review = await Review.findById(reviewId);
-        const userIndex = review.likedByIPs.findIndex((entry) => entry.ip === userIp);
+    const review = await Review.findById(id);
 
-        if (userIndex === -1) {
-            // If the user hasn't voted, add a "like" vote
-            review.likes += 1;
-            review.likedByIPs.push({ ip: userIp, vote: 'like' });
-        } else if (review.likedByIPs[userIndex].vote === 'dislike') {
-            // If the user previously disliked, switch to like
-            review.likes += 2;
-            review.likedByIPs[userIndex].vote = 'like';
+    // Check if the user has already liked or disliked this review
+    const existingVote = review.likedByIPs.find(vote => vote.ip === ip);
+
+    if (existingVote) {
+        // If the user has already voted, toggle the vote
+        if (existingVote.vote === 'like') {
+            review.likes--;
+            review.likedByIPs = review.likedByIPs.filter(vote => vote.ip !== ip);
         } else {
-            // If the user already liked, remove their like
-            review.likes -= 1;
-            review.likedByIPs.splice(userIndex, 1);
+            review.likes++;
+            existingVote.vote = 'like';
         }
-
-        await review.save();
-        res.sendStatus(200);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Internal Server Error' });
+    } else {
+        // If the user hasn't voted yet, add a new like
+        review.likes++;
+        review.likedByIPs.push({ ip, vote: 'like' });
     }
+
+    await review.save();
+    res.send(review);
 });
 
-// Dislike functionality for reviews
-app.put('/reviews/:id/dislike', async (req, res) => {
-    const reviewId = req.params.id;
-    const userIp = req.ip;
-
-    try {
-        const review = await Review.findById(reviewId);
-        const userIndex = review.likedByIPs.findIndex((entry) => entry.ip === userIp);
-
-        if (userIndex === -1) {
-            // If the user hasn't voted, add a "dislike" vote
-            review.likes -= 1;
-            review.likedByIPs.push({ ip: userIp, vote: 'dislike' });
-        } else if (review.likedByIPs[userIndex].vote === 'like') {
-            // If the user previously liked, switch to dislike
-            review.likes -= 2;
-            review.likedByIPs[userIndex].vote = 'dislike';
-        } else {
-            // If the user already disliked, remove their dislike
-            review.likes += 1;
-            review.likedByIPs.splice(userIndex, 1);
-        }
-
-        await review.save();
+// Admin login (dummy implementation)
+app.post('/login', (req, res) => {
+    const { username, password } = req.body;
+    // Replace with your actual authentication logic
+    if (username === 'elzino123' && password === 'elzino123') {
+        req.session.user = { username };
         res.sendStatus(200);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Internal Server Error' });
+    } else {
+        res.sendStatus(401);
     }
 });
 
 // Start the server
 app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server is running on http://localhost:${PORT}`);
 });

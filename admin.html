@@ -7,57 +7,51 @@
     <style>
         body {
             display: flex;
-            flex-direction: row; /* Use row to allow side-by-side layout */
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 20px;
         }
-        #pendingReviews {
-            width: 60%; /* Adjust width for pending reviews */
-            margin-right: 20px; /* Add margin for spacing */
+        #pendingReviews, #approvedReviews {
+            width: 100%;
+            max-width: 600px;
+            margin-top: 20px;
             border: 1px solid #ccc;
             padding: 10px;
             border-radius: 5px;
             background-color: #f9f9f9;
-        }
-        #approvedReviewsPanel {
-            width: 30%; /* Set width for approved reviews panel */
-            border: 1px solid #ccc;
-            padding: 10px;
-            border-radius: 5px;
-            background-color: #f1f1f1;
         }
         .review {
             border-bottom: 1px solid #eee;
             padding: 10px 0;
         }
         .review:last-child {
-            border-bottom: none; /* Remove border for the last review */
+            border-bottom: none;
         }
         button {
             margin-left: 10px;
         }
         .login-section {
-            margin-bottom: 20px; /* Add some spacing for the login section */
+            margin-bottom: 20px;
         }
     </style>
 </head>
 <body>
-    <div id="pendingReviews">
-        <h1>Pending Reviews</h1>
-        <!-- Add login form for admin access -->
-        <div class="login-section">
-            <h2>Admin Login</h2>
-            <input id="username" type="text" placeholder="Username">
-            <input id="password" type="password" placeholder="Password">
-            <button onclick="login()">Login</button>
-        </div>
-        <div id="pendingReviewsList"></div>
+    <h1>Admin Review Approval</h1>
+
+    <div class="login-section">
+        <h2>Admin Login</h2>
+        <input id="username" type="text" placeholder="Username">
+        <input id="password" type="password" placeholder="Password">
+        <button onclick="login()">Login</button>
     </div>
 
-    <div id="approvedReviewsPanel">
-        <h1>Approved Reviews</h1>
-        <div id="approvedReviewsList"></div>
+    <div id="pendingReviews"></div>
+    <div id="approvedReviews">
+        <h2>Approved Reviews</h2>
+        <div id="approvedReviewsContainer"></div>
     </div>
 
     <script>
@@ -69,13 +63,13 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password }),
-                credentials: 'include' // Ensure cookies are included in the request
+                credentials: 'include'
             });
 
             if (response.ok) {
                 alert('Login successful');
-                fetchPendingReviews(); // Fetch reviews after successful login
-                fetchApprovedReviews(); // Fetch approved reviews
+                fetchPendingReviews(); 
+                fetchApprovedReviews(); // Fetch approved reviews on successful login
             } else {
                 alert('Login failed');
             }
@@ -83,7 +77,7 @@
 
         async function fetchPendingReviews() {
             const response = await fetch('/reviews/pending', {
-                credentials: 'include', // Ensure cookies are sent
+                credentials: 'include',
             });
 
             if (!response.ok) {
@@ -92,8 +86,8 @@
             }
 
             const reviews = await response.json();
-            const container = document.getElementById('pendingReviewsList');
-            container.innerHTML = ''; // Clear previous content
+            const container = document.getElementById('pendingReviews');
+            container.innerHTML = '';
 
             reviews.forEach(review => {
                 const reviewDiv = document.createElement('div');
@@ -109,18 +103,10 @@
         }
 
         async function fetchApprovedReviews() {
-            const response = await fetch('/reviews/approved', {
-                credentials: 'include', // Ensure cookies are sent
-            });
-
-            if (!response.ok) {
-                console.error('Failed to fetch approved reviews:', response.statusText);
-                return;
-            }
-
+            const response = await fetch('/reviews/approved');
             const reviews = await response.json();
-            const container = document.getElementById('approvedReviewsList');
-            container.innerHTML = ''; // Clear previous content
+            const container = document.getElementById('approvedReviewsContainer');
+            container.innerHTML = '';
 
             reviews.forEach(review => {
                 const reviewDiv = document.createElement('div');
@@ -140,8 +126,8 @@
             if (!response.ok) {
                 console.error('Failed to approve review:', response.statusText);
             }
-            fetchPendingReviews(); // Refresh the pending reviews after approval
-            fetchApprovedReviews(); // Refresh the approved reviews
+            fetchPendingReviews(); 
+            fetchApprovedReviews(); // Refresh the approved reviews after approval
         }
 
         async function deleteReview(id) {
@@ -149,8 +135,8 @@
             if (!response.ok) {
                 console.error('Failed to delete review:', response.statusText);
             }
-            fetchPendingReviews(); // Refresh the pending reviews after deletion
-            fetchApprovedReviews(); // Refresh the approved reviews
+            fetchPendingReviews(); 
+            fetchApprovedReviews(); // Refresh the approved reviews after deletion
         }
     </script>
 </body>
